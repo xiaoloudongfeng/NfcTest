@@ -18,8 +18,6 @@ import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
     private NfcAdapter mNfcAdapter;
-    private PendingIntent mPendingIntent;
-    private String[][] mTechList;
     private static final String TAG = "MainActivity";
 
     // 检查是否支持nfc，如果支持，确保nfc打开
@@ -43,15 +41,15 @@ public class MainActivity extends AppCompatActivity {
 
         nfcCheck();
 
-        mPendingIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
-
-        // 只针对ACTION_TECH_DISCOVERED
-        mTechList = new String[][] {
-                {IsoDep.class.getName()}, {NfcA.class.getName()}, {NfcB.class.getName()},
-                {NfcV.class.getName()}, {NfcF.class.getName()}, {Ndef.class.getName()}};
-        for (String[] strings : mTechList) {
-            Log.i(TAG, strings[0]);
+        Intent intent = getIntent();
+        if (intent != null) {
+            final Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+            if (tag != null) {
+                IsoDep isoDep = IsoDep.get(tag);
+                if (isoDep != null) {
+                    new NfcTask(this).execute(isoDep);
+                }
+            }
         }
     }
 
@@ -101,7 +99,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, null, mTechList);
+        PendingIntent pendingIntent;
+        String[][] techList;
+
+        pendingIntent = PendingIntent.getActivity(this, 0,
+                new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+
+        // 只针对ACTION_TECH_DISCOVERED
+        techList = new String[][] {
+                {IsoDep.class.getName()}, {NfcA.class.getName()}, {NfcB.class.getName()},
+                {NfcV.class.getName()}, {NfcF.class.getName()}, {Ndef.class.getName()}};
+        for (String[] strings : techList) {
+            Log.i(TAG, strings[0]);
+        }
+        mNfcAdapter.enableForegroundDispatch(this, pendingIntent, null, techList);
     }
 
     @Override
