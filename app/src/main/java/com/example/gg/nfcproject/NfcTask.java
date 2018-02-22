@@ -5,6 +5,7 @@ import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -16,12 +17,16 @@ import java.lang.ref.WeakReference;
 
 public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
     private final WeakReference<TextView> mTextViewRefrence;
+    private final WeakReference<ProgressBar> mProgressBar;
     private static final String TAG = "NfcTask";
 
     public NfcTask(AppCompatActivity appCompatActivity) {
         TextView textView = (TextView) appCompatActivity.findViewById(R.id.text_view);
         textView.setMovementMethod(new ScrollingMovementMethod());
         mTextViewRefrence = new WeakReference<>(textView);
+
+        ProgressBar progressBar = (ProgressBar) appCompatActivity.findViewById(R.id.process_bar);
+        mProgressBar = new WeakReference<>(progressBar);
     }
 
     @Override
@@ -29,6 +34,11 @@ public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
         TextView textView = mTextViewRefrence.get();
         if (textView != null) {
             textView.setText("开始读取卡片...");
+        }
+
+        ProgressBar progressBar = mProgressBar.get();
+        if (progressBar != null) {
+            progressBar.setVisibility(ProgressBar.VISIBLE);
         }
     }
 
@@ -40,7 +50,6 @@ public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
             isoDep.connect();
 
             PBOCUtil pboc = new PBOCUtil(isoDep);
-
             if (pboc.pbocAppSelect() < 0) {
                 return null;
             }
@@ -57,15 +66,24 @@ public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
             pboc.pbocInsertTLV("9F21", "080000");
             pboc.pbocInsertTLV("9F4E", "1414141414141414141414141414141414141414");
 
+            publishProgress("卡片应用初始化...");
             if (pboc.pbocAppInit() < 0) {
+                publishProgress("卡片应用初始化失败");
                 return null;
             }
 
+            publishProgress("终端行为分析...");
             if (pboc.pbocTermActAnalyze() < 0) {
+                publishProgress("终端行为分析失败");
                 return null;
             }
 
-            return pboc.pbocGetTransDetail();
+            publishProgress("获取交易明细...");
+            String[] transDetail = pboc.pbocGetTransDetail();
+            if (transDetail == null) {
+                publishProgress("获取交易明细失败");
+            }
+            return transDetail;
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -76,6 +94,11 @@ public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
 
     @Override
     protected void onPostExecute(String... transDetailStrings) {
+        ProgressBar progressBar = mProgressBar.get();
+        if (progressBar != null) {
+            progressBar.setVisibility(ProgressBar.GONE);
+        }
+
         TextView textView = mTextViewRefrence.get();
         if (textView == null) {
             Log.d(TAG, "Activity is destroyed");
@@ -92,6 +115,24 @@ public class NfcTask extends AsyncTask<IsoDep, String, String[]> {
             if (string != null) {
                 textView.append(string + "\n\n");
             }
+        }
+    }
+
+    @Override
+    protected void onProgressUpdate(String... updateString) {
+        TextView textView = mTextViewRefrence.get();
+        if (textView == null) {
+            Log.d(TAG, "Activity is destroyed");
+            return;
+        }
+
+        if (updateString == null) {
+            Log.d(TAG, "updateString should not be null");
+            return;
+        }
+
+        for (String tmpString: updateString) {
+            textView.setText(tmpString);
         }
     }
 }
